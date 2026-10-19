@@ -1,5 +1,5 @@
 import { DAYS, SHORT_DAYS, TASK_TYPES, uid, localDate, dateInfo, tomorrowDate, createDemoState, createEmptyState, validateState, attendanceStats, dayStatus, summaries } from './data.js';
-import { UNIVERSITIES, HemisClient, importHemisData, probeBridge, getConnectionSettings, saveConnectionSettings, normalizeHttpsBridge } from './api.js';
+import { UNIVERSITIES, HemisClient, importHemisData, probeBridge, getConnectionSettings, saveConnectionSettings, normalizeHttpsBridge } from './api.js?v=2026.10.20.5';
 import { CloudSync, SYNC_INFO } from './sync.js';
 import { THEMES, applyTheme } from './theme.js';
 

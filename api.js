@@ -231,6 +231,44 @@ function portalUrl(value) {
   return url.origin;
 }
 
+export function parseHemisResponse(content, status = 200) {
+  try { return JSON.parse(content); } catch {}
+  if (typeof DOMParser === 'undefined' || /<!DOCTYPE|<!ENTITY/i.test(content) || !/^\s*(?:<\?xml[^>]*>\s*)?<response(?:\s|>)/i.test(content)) {
+    const error = new RequestError(`Портал HEMIS вернул страницу вместо данных API (HTTP ${status}). Мост получил ответ; проверьте доступ к API вуза.`, status, true);
+    error.code = 'UPSTREAM_NOT_JSON';
+    throw error;
+  }
+  const document = new DOMParser().parseFromString(content, 'application/xml');
+  if (document.querySelector('parsererror') || document.documentElement.localName !== 'response') {
+    const error = new RequestError('HEMIS вернул повреждённый XML-ответ API.', status, true);
+    error.code = 'UPSTREAM_INVALID_XML';
+    throw error;
+  }
+  function read(element, depth = 0) {
+    if (depth > 64) throw new RequestError('XML-ответ HEMIS слишком глубоко вложен.', status, true);
+    const children = Array.from(element.children);
+    if (!children.length) {
+      const value = element.textContent.trim();
+      if (!value) return ['items','records','results','list'].includes(element.localName) ? [] : null;
+      return value;
+    }
+    if (children.every(child => child.localName === 'item')) return children.map(child => read(child, depth + 1));
+    const result = Object.create(null);
+    for (const child of children) {
+      const name = child.localName;
+      if (['__proto__','constructor','prototype'].includes(name)) continue;
+      const value = read(child, depth + 1);
+      if (Object.hasOwn(result, name)) result[name] = Array.isArray(result[name]) ? [...result[name], value] : [result[name], value];
+      else result[name] = value;
+    }
+    return result;
+  }
+  const result = read(document.documentElement);
+  for (const field of ['success','ok']) if (result[field] === 'true' || result[field] === 'false') result[field] = result[field] === 'true';
+  if (result.data === null && result.success === true) result.data = [];
+  return result;
+}
+
 export class HemisClient {
   constructor({ baseUrl, token = '', allowPublicProxy = false, onStatus = () => {}, transport='auto',bridgeUrl='',bridgeKey='' }) {
     this.baseUrl = portalUrl(baseUrl);
@@ -276,13 +314,15 @@ export class HemisClient {
         const response = await fetch(route.url, { method: route.bridge ? 'POST' : method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal, ...(route.bridge ? { body: JSON.stringify({ target, method, token: this.token, body,...(this.cloudBridge?{key:this.bridgeKey}:{}) }) } : body ? { body: JSON.stringify(body) } : {}) });
         const content = await response.text();
         let payload;
-        try { payload = JSON.parse(content); } catch { throw new RequestError(`Вместо JSON получена страница сервера (HTTP ${response.status}).`, response.status); }
+        if (route.bridge) {
+          try { payload = JSON.parse(content); } catch { throw new RequestError(`Мост вернул ответ неизвестного формата (HTTP ${response.status}).`, response.status); }
+        } else payload = parseHemisResponse(content, response.status);
         const status = route.bridge ? Number(payload.status ?? response.status) : response.status;
-        const data = route.bridge ? payload.data : payload;
+        const data = route.bridge ? payload.format === 'xml' ? parseHemisResponse(payload.data, status) : payload.data : payload;
         if (!response.ok || route.bridge && !payload.ok || status >= 400) {
           const bridgeErrors = {UPSTREAM_TIMEOUT:'Мост работает, но портал HEMIS не ответил вовремя.',UPSTREAM_TLS:'Мост не смог установить доверенное HTTPS-соединение с порталом HEMIS.',UPSTREAM_NETWORK:'Мост не смог найти портал HEMIS или подключиться к нему. Проверьте адрес и сеть.',BRIDGE_ERROR:'Мост получил запрос, но не смог его выполнить. Проверьте доступ к порталу и обновите локальный сервер.'};
           const message = payload.code==='BRIDGE_AUTH_REQUIRED'?'Неверный или отсутствующий ключ HTTPS-моста. Это отдельный ключ сервера, не пароль HEMIS.':this.cloudBridge&&payload.code&&typeof payload.error==='string'?payload.error:status === 401 ? 'HEMIS отклонил авторизацию. Проверьте логин, пароль или срок токена.' : status === 429 ? 'HEMIS ограничил частоту запросов. Повторите позже.' : (this.cloudBridge?text(payload.error):bridgeErrors[payload.code]) || `Ошибка HTTP ${status}: ${text(payload.error ?? data?.message ?? payload.message).slice(0, 160) || 'сервер недоступен'}`;
-          const error=new RequestError(message, status, [401, 422, 429].includes(status));error.code=payload.code;throw error;
+          const error=new RequestError(message, status, [401, 422, 429].includes(status) || Boolean(route.bridge && payload.code && (this.cloudBridge || this.transport==='local')));error.code=payload.code;throw error;
         }
         try { assertSuccess(data); } catch (error) { if (path === 'auth/login') throw new RequestError(error.message, status, true); throw error; }
         this.onStatus(`Подключено: ${route.name.toLowerCase()}`);

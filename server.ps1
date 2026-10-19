@@ -136,7 +136,7 @@ try {
             }
             if ($path -eq '/health') {
                 if ($method -ne 'GET') { Send-Json $stream 405 @{ok=$false;error='GET required'} $origin; continue }
-                Send-Json $stream 200 @{ok=$true;service='hemis-planner-bridge';protocol=1;version='2026.10.20.4';port=$Port} $origin
+                Send-Json $stream 200 @{ok=$true;service='hemis-planner-bridge';protocol=1;version='2026.10.20.5';port=$Port} $origin
                 continue
             }
             if ($path -eq '/hemis-proxy') {
@@ -161,7 +161,12 @@ try {
                         if ($upstream.Content.Headers.ContentLength -gt 10485760) { throw 'Response too large' }
                         $raw = $upstream.Content.ReadAsStringAsync().GetAwaiter().GetResult()
                         if ($raw.Length -gt 10485760) { throw 'Response too large' }
-                        try { $data=$raw | ConvertFrom-Json } catch { Send-Json $stream 502 @{ok=$false;status=[int]$upstream.StatusCode;error='Portal returned a non-JSON response'} $origin; continue }
+                        try { $data=$raw | ConvertFrom-Json } catch {
+                            if ($raw -match '^\s*(?:<\?xml[^>]*>\s*)?<response(?:\s|>)' -and $raw -notmatch '<!DOCTYPE|<!ENTITY' -and $raw -match '</response\s*>\s*$') {
+                                Send-Json $stream 200 @{ok=[bool]$upstream.IsSuccessStatusCode;status=[int]$upstream.StatusCode;format='xml';data=$raw} $origin; continue
+                            }
+                            Send-Json $stream 502 @{ok=$false;status=[int]$upstream.StatusCode;code='UPSTREAM_NOT_JSON';error=('The bridge received a page instead of API data from HEMIS (HTTP '+[int]$upstream.StatusCode+').')} $origin; continue
+                        }
                         Send-Json $stream 200 @{ok=[bool]$upstream.IsSuccessStatusCode;status=[int]$upstream.StatusCode;data=$data} $origin
                     } finally { $upstream.Dispose() }
                 } finally { $message.Dispose() }

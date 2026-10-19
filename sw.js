@@ -1,5 +1,5 @@
 /* Network-first for this app's static files only. Never cache HEMIS or ntfy data. */
-const CACHE_VERSION = '2026.10.20.4';
+const CACHE_VERSION = '2026.10.20.5';
 const ROOT = new URL('./', self.location.href);
 const CACHE_PREFIX = `hemis-planner:${ROOT.pathname}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
