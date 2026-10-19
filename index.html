@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09090b">
   <meta name="description" content="Вся учебная неделя в одном месте: расписание HEMIS, задания и контроль посещаемости.">
+  <meta name="application-version" content="2026.10.20.2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>HEMIS Planner — моя учебная неделя</title>
@@ -14,8 +15,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700;750&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
-  <script type="module" src="./app.js"></script>
+  <link rel="stylesheet" href="./styles.css?v=2026.10.20.2">
+  <style>
+    .startup-message{max-width:560px;margin:15vh auto;padding:28px;font:14px/1.8 Inter,Arial,sans-serif;color:#27272a;text-align:left}
+    .startup-message h1{font-size:23px;line-height:1.4;margin:0 0 16px}.startup-message p{margin:12px 0;color:#71717a}
+    .startup-message a,.startup-message button{display:inline-block;margin:10px 10px 0 0;padding:9px 14px;border:1px solid #d4d4d8;border-radius:6px;background:#fafafa;color:#27272a;font:inherit;text-decoration:none;cursor:pointer}
+    .startup-message pre{padding:12px;background:#f1f1f3;border-radius:6px;font:11px/1.7 monospace;white-space:pre-wrap;overflow-wrap:anywhere}.startup-message small{display:block;color:#a1a1aa;margin-top:20px}
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
@@ -23,5 +29,62 @@
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite"></div>
   <noscript>Для работы HEMIS Planner включите JavaScript в браузере.</noscript>
+  <script>
+    (function () {
+      'use strict';
+      var release = '2026.10.20.2';
+      var root = document.getElementById('app');
+      var slowTimer;
+      function showError(error) {
+        clearTimeout(slowTimer);
+        root.textContent = '';
+        var panel = document.createElement('section');
+        panel.className = 'startup-message';
+        panel.setAttribute('role', 'alert');
+        var heading = document.createElement('h1');
+        heading.textContent = location.protocol === 'file:' ? 'Откройте Planner через start.bat' : 'Не удалось запустить Planner';
+        panel.appendChild(heading);
+        var text = document.createElement('p');
+        text.textContent = location.protocol === 'file:'
+          ? 'Браузер не разрешает загружать модули при открытии HTML-файла двойным нажатием. Запустите start.bat из этой папки или откройте опубликованный сайт по HTTPS.'
+          : 'Проверьте, что все файлы приложения загружены в одну папку рядом с index.html. Проверка ниже покажет отсутствующие файлы. Ваши сохранённые задания не удаляются.';
+        panel.appendChild(text);
+        if (location.protocol !== 'file:') {
+          var checkLink = document.createElement('a');
+          checkLink.href = './check.html';
+          checkLink.textContent = 'Проверить файлы сайта';
+          panel.appendChild(checkLink);
+          var retry = document.createElement('button');
+          retry.type = 'button';
+          retry.textContent = 'Повторить загрузку';
+          retry.addEventListener('click', function () { location.reload(); });
+          panel.appendChild(retry);
+        }
+        var details = document.createElement('pre');
+        details.textContent = error && error.message ? error.message : String(error);
+        panel.appendChild(details);
+        var version = document.createElement('small');
+        version.textContent = 'HEMIS Planner · версия ' + release;
+        panel.appendChild(version);
+        root.appendChild(panel);
+      }
+      if (location.protocol === 'file:') { showError(new Error('Для запуска нужен HTTPS или localhost.')); return; }
+      slowTimer = setTimeout(function () {
+        if (!root.querySelector('.layout')) {
+          var hint = document.createElement('p');
+          hint.style.cssText = 'font:13px/1.8 Arial,sans-serif;text-align:center;padding:16px;color:#71717a';
+          var link = document.createElement('a');
+          link.href = './check.html';
+          link.textContent = 'Загрузка затянулась. Проверить файлы сайта →';
+          hint.appendChild(link);
+          root.appendChild(hint);
+        }
+      }, 12000);
+      import('./app.js?v=' + release).then(function () {
+        clearTimeout(slowTimer);
+        if (!root.querySelector('.layout')) showError(new Error('Модуль загружен, но интерфейс не запустился.'));
+      }).catch(showError);
+    })();
+  </script>
 </body>
 </html>

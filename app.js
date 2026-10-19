@@ -284,7 +284,7 @@ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();ins
 window.addEventListener('appinstalled',()=>{installPrompt=null;toast('HEMIS Planner установлен');});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')minuteTick();});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){
- navigator.serviceWorker.register('./sw.js',{scope:'./'}).then(reg=>{notificationRegistration=reg;if(reg.waiting)toast('Доступно обновление. Закройте вкладки Planner и откройте снова.');}).catch(()=>toast('Офлайн-режим пока недоступен. Проверьте загрузку файлов приложения.'));
+ navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'}).then(reg=>{notificationRegistration=reg;if(reg.waiting)toast('Доступно обновление. Закройте вкладки Planner и откройте снова.');}).catch(()=>toast('Офлайн-режим пока недоступен. Проверьте загрузку файлов приложения.'));
 }
 render();setInterval(minuteTick,60000);if(storageError)setTimeout(()=>toast(storageError),500);
 if(location.protocol==='file:')setTimeout(()=>toast('Запустите start.bat или откройте сайт по HTTPS. Модули и PWA не работают через file://.'),1000);

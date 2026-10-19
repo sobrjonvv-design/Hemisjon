@@ -1,5 +1,5 @@
 /* Network-first for this app's static files only. Never cache HEMIS or ntfy data. */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = '2026.10.20.2';
 const ROOT = new URL('./', self.location.href);
 const CACHE_PREFIX = `hemis-planner:${ROOT.pathname}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
@@ -28,15 +28,17 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== ROOT.origin || !url.pathname.startsWith(ROOT.pathname)) return;
+  if (request.method !== 'GET' || url.origin !== ROOT.origin || !url.pathname.startsWith(ROOT.pathname) || url.searchParams.has('diagnostic')) return;
   // Exact allowlist prevents accidental storage of API responses or credentials.
   const cleanURL = new URL(url.pathname, ROOT.origin).href;
   const isNavigation = request.mode === 'navigate' && (url.pathname === ROOT.pathname || url.pathname === `${ROOT.pathname}index.html`);
   if (!STATIC_URLS.has(cleanURL) && !isNavigation) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
     try {
-      const response = await fetch(request);
+      const response = await fetch(request, {signal: controller.signal});
       if (response.ok && response.type === 'basic') await cache.put(cleanURL, response.clone());
       if (response.ok) return response;
       const cached = await cache.match(cleanURL);
@@ -46,7 +48,7 @@ self.addEventListener('fetch', event => {
       if (cached) return cached;
       if (isNavigation) return (await cache.match(new URL('./index.html', ROOT).href)) || Response.error();
       return Response.error();
-    }
+    } finally { clearTimeout(timeout); }
   })());
 });
 self.addEventListener('message', event => {
