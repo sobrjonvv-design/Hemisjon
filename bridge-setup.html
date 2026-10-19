@@ -26,7 +26,7 @@
     <div class="row"><button id="copy-source" disabled>Скопировать код сервера</button><a href="./cloud-bridge/worker.js" download="worker.js">Скачать worker.js</a></div>
     <p id="source-status" class="status" role="status">Загружаем код из папки сайта…</p>
     <details><summary>Показать код для ручного копирования</summary><label for="source">Код Worker</label><textarea id="source" rows="14" readonly spellcheck="false"></textarea></details>
-    <details style="margin-top:15px"><summary>Если удобнее импортировать GitHub-репозиторий</summary><p>Подключите репозиторий с сайтом, укажите корневую папку <code>cloud-bridge</code>, оставьте сборку пустой и используйте команду публикации <code>npx wrangler deploy</code>. Конфигурация уже лежит в wrangler.jsonc. После публикации всё равно добавьте секрет и разрешённый адрес из следующего шага.</p></details>
+    <details style="margin-top:15px"><summary>Если удобнее импортировать GitHub-репозиторий</summary><p>Подключите репозиторий с сайтом, укажите корневую папку <code>cloud-bridge</code>, оставьте сборку пустой и используйте команду публикации <code>npx wrangler deploy</code>. Загрузите папку cloud-bridge целиком, сохранив её структуру. В её wrangler.jsonc указано имя <code>hemisjon</code>: оно должно совпадать с именем Worker в Cloudflare. Для другого Worker замените поле name. После публикации всё равно добавьте секрет и разрешённый адрес из следующего шага.</p></details>
   </section>
   <section>
     <h2><span class="number">03</span>Настройте две переменные</h2>
