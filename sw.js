@@ -1,11 +1,12 @@
 /* Network-first for this app's static files only. Never cache HEMIS or ntfy data. */
-const CACHE_VERSION = '2026.10.20.3';
+const CACHE_VERSION = '2026.10.20.4';
 const ROOT = new URL('./', self.location.href);
 const CACHE_PREFIX = `hemis-planner:${ROOT.pathname}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const STATIC_FILES = [
   './', './index.html', './styles.css', './app.js', './api.js', './sync.js', './data.js', './theme.js',
-  './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'
+  './manifest.json', './icon.svg', './icon-192.png', './icon-512.png',
+  './bridge-setup.html', './cloud-bridge/worker.js'
 ];
 const STATIC_URLS = new Set(STATIC_FILES.map(path => new URL(path, ROOT).href));
 

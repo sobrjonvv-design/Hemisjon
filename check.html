@@ -11,7 +11,7 @@
 </head>
 <body>
 <main>
-  <small>HEMIS PLANNER · 2026.10.20.3</small>
+  <small>HEMIS PLANNER · 2026.10.20.4</small>
   <h1>Все ли файлы сайта на месте?</h1>
   <p>Эта страница проверяет загрузку приложения. Она не подключается к HEMIS, не читает задания и не отправляет данные в облако.</p>
   <p id="address"></p>
@@ -24,7 +24,7 @@
 <script>
   (function () {
     'use strict';
-    var files=['index.html','styles.css','app.js','data.js','api.js','sync.js','theme.js','manifest.json','sw.js','icon.svg','icon-192.png','icon-512.png'];
+    var files=['index.html','styles.css','app.js','data.js','api.js','sync.js','theme.js','manifest.json','sw.js','icon.svg','icon-192.png','icon-512.png','bridge-setup.html','cloud-bridge/worker.js'];
     var result=document.getElementById('result'),list=document.getElementById('files'),button=document.getElementById('retry');
     document.getElementById('address').textContent='Адрес: '+new URL('./',location.href).href;
     async function run() {
@@ -45,11 +45,11 @@
           }else{
             var text=await response.text();
             if(!text.trim())throw new Error('Файл пустой');
-            if(name!=='index.html'&&/^\s*(?:<!doctype\s+html|<html)/i.test(text))throw new Error('Вместо файла сервер вернул HTML-страницу');
+            if(!name.endsWith('.html')&&/^\s*(?:<!doctype\s+html|<html)/i.test(text))throw new Error('Вместо файла сервер вернул HTML-страницу');
             if(name.endsWith('.js')&&!/(?:javascript|ecmascript)/i.test(response.headers.get('content-type')||''))throw new Error('Сервер не передаёт файл как JavaScript');
             if(name==='manifest.json'){var manifest=JSON.parse(text);if(manifest.start_url!=='./'||manifest.scope!=='./')throw new Error('Пути PWA не соответствуют папке сайта');}
-            if(name==='index.html'&&!text.includes('2026.10.20.3'))throw new Error('На сервере предыдущая версия index.html');
-            if(name==='sw.js'&&!text.includes("CACHE_VERSION = '2026.10.20.3'"))throw new Error('На сервере предыдущая версия sw.js');
+            if(name==='index.html'&&!text.includes('2026.10.20.4'))throw new Error('На сервере предыдущая версия index.html');
+            if(name==='sw.js'&&!text.includes("CACHE_VERSION = '2026.10.20.4'"))throw new Error('На сервере предыдущая версия sw.js');
           }
           statusCell.textContent='✓ Загружен';statusCell.className='ok';
         }catch(error){errors++;statusCell.textContent=error.name==='AbortError'?'Нет ответа за 12 секунд':error.message;statusCell.className='error';}

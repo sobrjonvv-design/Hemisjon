@@ -13,19 +13,48 @@ function bridgeOrigin() {
   return page && ['127.0.0.1', 'localhost'].includes(page.hostname) ? page.origin : 'http://127.0.0.1:8080';
 }
 
-export async function probeBridge({timeoutMs = 3000} = {}) {
-  const origin = bridgeOrigin();
+export function normalizeHttpsBridge(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  let url;
+  try { url = new URL(input); } catch { throw new Error('Введите полный адрес HTTPS-моста, например https://hemis-bridge.example.workers.dev'); }
+  if (url.protocol!=='https:' || url.username || url.password || url.port || url.search || url.hash || !url.hostname.includes('.') || /^(?:\d+\.){3}\d+$/.test(url.hostname) || url.hostname.endsWith('.local')) throw new Error('Для удалённого моста нужен публичный HTTPS-адрес без пароля и параметров.');
+  const path = url.pathname.replace(/\/(?:health|hemis-proxy)\/?$/,'').replace(/\/+$/,'');
+  return url.origin+path;
+}
+function connectionStorageKey() { return 'hemis-planner-connection-v1:'+(globalThis.location?new URL('./',location.href).pathname:'/'); }
+export function getConnectionSettings() {
+  const page=globalThis.location;
+  const defaults={transport:page&&['localhost','127.0.0.1'].includes(page.hostname)?'local':'cloud',bridgeUrl:''};
+  try {
+    const saved=JSON.parse(localStorage.getItem(connectionStorageKey())||'null');
+    if(saved&&['local','cloud','direct'].includes(saved.transport))return {transport:saved.transport,bridgeUrl:normalizeHttpsBridge(saved.bridgeUrl)};
+  } catch {}
+  return defaults;
+}
+export function saveConnectionSettings(settings) {
+  const saved={transport:['local','cloud','direct'].includes(settings.transport)?settings.transport:'cloud',bridgeUrl:normalizeHttpsBridge(settings.bridgeUrl)};
+  try {localStorage.setItem(connectionStorageKey(),JSON.stringify(saved));}catch{}
+  return saved;
+}
+
+export async function probeBridge({timeoutMs,bridgeUrl=''} = {}) {
+  const remote=Boolean(bridgeUrl);
+  const origin = remote?normalizeHttpsBridge(bridgeUrl):bridgeOrigin();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs || (remote?7000:3000));
   try {
     const response = await fetch(`${origin}/health`, {method: 'GET', credentials: 'omit', cache: 'no-store', signal: controller.signal});
-    if (!response.ok) return {ok: false, code: 'BRIDGE_OUTDATED', message: 'Мост не отвечает на проверку. Запустите stop.bat, затем обновлённый start.bat.', url: origin};
+    if (!response.ok) {
+      let detail;try{detail=await response.json();}catch{}
+      return {ok:false,code:detail?.code||'BRIDGE_UNREACHABLE',message:remote?(detail?.error||`HTTPS-мост вернул HTTP ${response.status}. Проверьте публикацию сервера и ALLOWED_ORIGINS.`):'Мост не отвечает на проверку. Запустите stop.bat, затем обновлённый start.bat.',url:origin};
+    }
     let data;
-    try { data = await response.json(); } catch { return {ok: false, code: 'WRONG_SERVICE', message: 'На порту запущена другая программа. Остановите её и запустите start.bat.', url: origin}; }
-    if (data.service !== 'hemis-planner-bridge' || data.protocol !== 1) return {ok: false, code: 'WRONG_SERVICE', message: 'Обнаружен другой или устаревший сервер. Запустите stop.bat, затем start.bat из обновлённой папки.', url: origin};
-    return {ok: true, code: 'READY', message: 'Локальный мост работает. Можно подключаться к HEMIS.', version: data.version, url: origin};
+    try { data = await response.json(); } catch { return {ok: false, code: 'WRONG_SERVICE', message:remote?'По этому адресу нет JSON-ответа моста. Проверьте URL опубликованного Worker.':'На порту запущена другая программа. Остановите её и запустите start.bat.', url: origin}; }
+    if (data.service !== 'hemis-planner-bridge' || data.protocol !== 1) return {ok: false, code: 'WRONG_SERVICE', message:remote?'Адрес не принадлежит совместимому мосту HEMIS Planner.':'Обнаружен другой или устаревший сервер. Запустите stop.bat, затем start.bat из обновлённой папки.', url: origin};
+    return {ok: true, code: 'READY', message:remote?'HTTPS-мост доступен. Проверка входа в HEMIS выполняется после отправки формы.':'Локальный мост работает. Можно подключаться к HEMIS.', version: data.version, requiresKey:Boolean(data.requiresKey), url: origin};
   } catch {
-    return {ok: false, code: 'BRIDGE_UNREACHABLE', message: 'Локальный мост недоступен браузеру. Запустите start.bat на этом компьютере. Если он уже запущен — откройте локальную версию приложения.', url: origin};
+    return {ok: false, code: 'BRIDGE_UNREACHABLE', message:remote?'HTTPS-мост недоступен. Проверьте адрес, публикацию Worker и ALLOWED_ORIGINS. Загрузка одного worker.js на GitHub не запускает сервер.':'Локальный мост недоступен браузеру. Запустите start.bat на этом компьютере. Если он уже запущен — откройте локальную версию приложения.', url: origin};
   } finally { clearTimeout(timer); }
 }
 
@@ -203,31 +232,38 @@ function portalUrl(value) {
 }
 
 export class HemisClient {
-  constructor({ baseUrl, token = '', allowPublicProxy = false, onStatus = () => {} }) {
+  constructor({ baseUrl, token = '', allowPublicProxy = false, onStatus = () => {}, transport='auto',bridgeUrl='',bridgeKey='' }) {
     this.baseUrl = portalUrl(baseUrl);
     this.token = text(token).replace(/^Bearer\s+/i, '');
     this.allowPublicProxy = Boolean(allowPublicProxy);
     this.onStatus = onStatus;
     this.bridgeUnavailable = false;
     this.bridgeChecked = false;
+    this.transport=transport;
+    this.bridgeUrl=transport==='cloud'||transport==='auto'?normalizeHttpsBridge(bridgeUrl):'';
+    this.cloudBridge=transport==='cloud'||transport==='auto'&&Boolean(this.bridgeUrl);
+    this.bridgeKey=String(bridgeKey||'').trim();
+    if(this.cloudBridge&&!this.bridgeUrl){const error=new Error('HTTPS-мост ещё не настроен. Сначала создайте сервер по инструкции и укажите его адрес.');error.code='CLOUD_BRIDGE_NOT_CONFIGURED';throw error;}
   }
 
   async request(path, { method = 'GET', body } = {}) {
     const target = `${this.baseUrl}/rest/v1/${path}`;
     const routes = [];
     const failures = [];
-    if (!this.bridgeChecked) {
-      this.onStatus('Проверяем локальный мост…');
-      this.bridgeStatus = await probeBridge();
+    if (!this.bridgeChecked && this.transport!=='direct') {
+      this.onStatus(this.cloudBridge?'Проверяем HTTPS-мост…':'Проверяем локальный мост…');
+      this.bridgeStatus = await probeBridge({bridgeUrl:this.cloudBridge?this.bridgeUrl:''});
       this.bridgeUnavailable = !this.bridgeStatus.ok;
       this.bridgeChecked = true;
     }
-    if (!this.bridgeUnavailable) routes.push({ name: 'Локальный мост', url: `${bridgeOrigin()}/hemis-proxy`, bridge: true });
-    else failures.push(`Локальный мост: ${this.bridgeStatus?.message || 'недоступен'}`);
-    routes.push({ name: 'Прямое подключение', url: target });
+    if (this.transport!=='direct') {
+      if (!this.bridgeUnavailable) routes.push({ name:this.cloudBridge?'HTTPS-мост':'Локальный мост', url: `${this.cloudBridge?this.bridgeUrl:bridgeOrigin()}/hemis-proxy`, bridge: true });
+      else failures.push(`${this.cloudBridge?'HTTPS-мост':'Локальный мост'}: ${this.bridgeStatus?.message || 'недоступен'}`);
+    }
+    if (this.transport==='auto'&&!this.cloudBridge||this.transport==='direct') routes.push({ name: 'Прямое подключение', url: target });
     // Public services receive the bearer token. Only an explicit opt-in enables GET fallback.
     // Password login is never relayed to public proxies.
-    if (this.allowPublicProxy && method === 'GET') routes.push(
+    if (this.allowPublicProxy && method === 'GET' && !this.cloudBridge && this.transport!=='local') routes.push(
       { name: 'Публичный прокси corsproxy.io', url: `https://corsproxy.io/?url=${encodeURIComponent(target)}` },
       { name: 'Публичный прокси cors.eu.org', url: `https://cors.eu.org/${target}` }
     );
@@ -237,7 +273,7 @@ export class HemisClient {
       const timeout = setTimeout(() => controller.abort(), route.bridge ? 26000 : 18000);
       try {
         const headers = route.bridge ? { 'Content-Type': 'text/plain' } : { Accept: 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) };
-        const response = await fetch(route.url, { method: route.bridge ? 'POST' : method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal, ...(route.bridge ? { body: JSON.stringify({ target, method, token: this.token, body }) } : body ? { body: JSON.stringify(body) } : {}) });
+        const response = await fetch(route.url, { method: route.bridge ? 'POST' : method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal, ...(route.bridge ? { body: JSON.stringify({ target, method, token: this.token, body,...(this.cloudBridge?{key:this.bridgeKey}:{}) }) } : body ? { body: JSON.stringify(body) } : {}) });
         const content = await response.text();
         let payload;
         try { payload = JSON.parse(content); } catch { throw new RequestError(`Вместо JSON получена страница сервера (HTTP ${response.status}).`, response.status); }
@@ -245,8 +281,8 @@ export class HemisClient {
         const data = route.bridge ? payload.data : payload;
         if (!response.ok || route.bridge && !payload.ok || status >= 400) {
           const bridgeErrors = {UPSTREAM_TIMEOUT:'Мост работает, но портал HEMIS не ответил вовремя.',UPSTREAM_TLS:'Мост не смог установить доверенное HTTPS-соединение с порталом HEMIS.',UPSTREAM_NETWORK:'Мост не смог найти портал HEMIS или подключиться к нему. Проверьте адрес и сеть.',BRIDGE_ERROR:'Мост получил запрос, но не смог его выполнить. Проверьте доступ к порталу и обновите локальный сервер.'};
-          const message = status === 401 ? 'HEMIS отклонил авторизацию. Проверьте логин, пароль или срок токена.' : status === 429 ? 'HEMIS ограничил частоту запросов. Повторите позже.' : bridgeErrors[payload.code] || `Ошибка HTTP ${status}: ${text(payload.error ?? data?.message ?? payload.message).slice(0, 160) || 'сервер недоступен'}`;
-          throw new RequestError(message, status, [401, 422, 429].includes(status));
+          const message = payload.code==='BRIDGE_AUTH_REQUIRED'?'Неверный или отсутствующий ключ HTTPS-моста. Это отдельный ключ сервера, не пароль HEMIS.':this.cloudBridge&&payload.code&&typeof payload.error==='string'?payload.error:status === 401 ? 'HEMIS отклонил авторизацию. Проверьте логин, пароль или срок токена.' : status === 429 ? 'HEMIS ограничил частоту запросов. Повторите позже.' : (this.cloudBridge?text(payload.error):bridgeErrors[payload.code]) || `Ошибка HTTP ${status}: ${text(payload.error ?? data?.message ?? payload.message).slice(0, 160) || 'сервер недоступен'}`;
+          const error=new RequestError(message, status, [401, 422, 429].includes(status));error.code=payload.code;throw error;
         }
         try { assertSuccess(data); } catch (error) { if (path === 'auth/login') throw new RequestError(error.message, status, true); throw error; }
         this.onStatus(`Подключено: ${route.name.toLowerCase()}`);
@@ -258,7 +294,7 @@ export class HemisClient {
         failures.push(`${route.name}: ${reason}`);
       } finally { clearTimeout(timeout); }
     }
-    const failure = new Error(`${failures.join('\n')}\nДля Windows: запустите start.bat и выполните вход в открывшейся локальной версии. На GitHub Pages серверный мост не запускается. Альтернатива — импорт JSON. Это сетевая ошибка; правильность пароля пока не подтверждена.`);
+    const failure = new Error(`${failures.join('\n')}\n${this.cloudBridge?'Для входа с GitHub нужен опубликованный HTTPS-мост. Проверьте его настройку по инструкции.':this.transport==='direct'?'Прямой вход возможен только если вуз разрешает CORS. Выберите HTTPS-мост или локальный мост.':'Для Windows: запустите start.bat и выполните вход в открывшейся локальной версии. На GitHub Pages серверный мост не запускается.'} Это сетевая ошибка; правильность пароля пока не подтверждена.`);
     failure.code = 'CONNECTION_UNAVAILABLE';
     failure.bridge = this.bridgeStatus;
     throw failure;

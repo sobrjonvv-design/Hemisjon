@@ -136,7 +136,7 @@ try {
             }
             if ($path -eq '/health') {
                 if ($method -ne 'GET') { Send-Json $stream 405 @{ok=$false;error='GET required'} $origin; continue }
-                Send-Json $stream 200 @{ok=$true;service='hemis-planner-bridge';protocol=1;version='2026.10.20.3';port=$Port} $origin
+                Send-Json $stream 200 @{ok=$true;service='hemis-planner-bridge';protocol=1;version='2026.10.20.4';port=$Port} $origin
                 continue
             }
             if ($path -eq '/hemis-proxy') {

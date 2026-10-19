@@ -1,0 +1,10 @@
+{
+  "name": "hemis-planner-bridge",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://sobrjonvv-design.github.io"
+  },
+  "observability": { "enabled": false }
+}

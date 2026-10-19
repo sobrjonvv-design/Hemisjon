@@ -6,7 +6,7 @@ function Get-BridgeHealth {
 }
 try {
     $health = Get-BridgeHealth
-    if ($health -and ($health.service -ne 'hemis-planner-bridge' -or $health.version -ne '2026.10.20.3')) {
+    if ($health -and ($health.service -ne 'hemis-planner-bridge' -or $health.version -ne '2026.10.20.4')) {
         throw 'An older or different server is running on port 8080. Run stop.bat, then start.bat from the updated folder.'
     }
     if (!$health) {
@@ -19,7 +19,7 @@ try {
             $health = Get-BridgeHealth
         } while (!$health -and !$process.HasExited -and [DateTime]::UtcNow -lt $deadline)
     }
-    if (!$health -or $health.service -ne 'hemis-planner-bridge' -or $health.version -ne '2026.10.20.3') {
+    if (!$health -or $health.service -ne 'hemis-planner-bridge' -or $health.version -ne '2026.10.20.4') {
         throw 'The bridge did not start. Port 8080 may be occupied. Run stop.bat and try start.bat again.'
     }
     Write-Output 'HEMIS Planner bridge is ready: http://127.0.0.1:8080/'

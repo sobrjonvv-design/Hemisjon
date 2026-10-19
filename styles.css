@@ -94,3 +94,10 @@ html[data-theme="dark"] .form-status.error{color:#e49d93}
 html[data-theme="dark"] .startup-message{color:#fafafa}
 html[data-theme="dark"] .startup-message pre,html[data-theme="dark"] .startup-message a,html[data-theme="dark"] .startup-message button{background:#20202a;color:#e4e4ee;border-color:#3c3c4a}
 @media(max-width:720px){.connection-guide .btn{white-space:normal;line-height:1.6;font-size:10px}.connection-guide{padding:13px}.connection-guide p{font-size:11px}.top-actions{gap:2px}}
+.modal-header{position:sticky;top:0;z-index:2;background:inherit}
+.connection-form .modal-tabs{margin-top:20px}
+.connection-form .connection-guide{margin-bottom:12px}
+.bridge-setup-note a{color:inherit;text-decoration:underline;text-underline-offset:3px;font-weight:550}
+.connection-guide .field small{display:block}
+.connection-guide .form-status{font-size:11px}
+.connection-recovery a{color:inherit;text-underline-offset:3px}
