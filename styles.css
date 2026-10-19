@@ -10,3 +10,87 @@
 @media(max-width:720px){.sidebar{transform:translateX(-100%);transition:transform .2s;width:232px}.sidebar.open{transform:translateX(0)}.mobile-backdrop.visible{display:block;position:fixed;inset:0;background:#09090b50;z-index:39}.main-shell{margin-left:0}.topbar{height:57px;padding:0 20px}.menu-toggle{display:inline-grid}.breadcrumb{gap:8px;font-size:10px}.top-actions{gap:2px}.top-actions .mode-badge{display:none}.content{padding:28px 20px 45px}.page-heading h1{font-size:26px;letter-spacing:-1px}.page-heading p{font-size:11px;max-width:240px}.page-heading .actions{padding-top:2px}.page-heading .actions .btn:not(.primary){display:none}.page-heading .actions .btn{font-size:10px;min-height:32px}.page-heading .actions .btn svg{width:12px}.page-eyebrow{font-size:8px}.dashboard-grid{margin-top:24px}.live-card{padding:19px 19px 17px;min-height:143px}.live-title h2{font-size:17px}.live-title .mono{font-size:22px}.summary-cell{padding:0 12px}.summary-cell label{font-size:9px}.summary-cell strong{font-size:20px}.summary-cell small{font-size:8px;margin-left:3px}.summary-cell .minor{font-size:8px}.day-tabs{gap:3px;justify-content:space-between}.day-tab{font-size:9px;padding:7px 9px}.day-tab:first-child{padding:7px}.section-toolbar{padding-top:23px}.section-toolbar .subtle{font-size:9px}.lesson{grid-template-columns:49px minmax(0,1fr);gap:9px}.lesson-name{font-size:12px}.lesson-time time{font-size:10px}.lesson-time time+time{font-size:9px}.lesson-head .badge{font-size:8px}.lesson-head .icon-btn{width:18px;height:21px}.lesson-meta{gap:6px;font-size:8px}.task{padding:9px}.task-title{font-size:9px}.task-due{font-size:7px}.task-subline{font-size:7px;gap:6px}.task-subline .mini-progress{width:30px}.aside{gap:20px}.aside-title{font-size:10px}.weekly-progress{gap:10px}.ring,.ring svg{width:58px;height:58px}.ring strong{font-size:13px}.weekly-copy strong{font-size:10px}.weekly-copy p{font-size:8px}.deadline button{font-size:9px}.deadline{grid-template-columns:21px 1fr;gap:7px}.deadline-icon{width:21px;height:24px}.aside-caption{font-size:8px}.deadline p{font-size:7px;display:block}.sync-mini{margin-top:0}.view-tools{align-items:stretch}.search-field{width:100%}.filter-select{font-size:10px;min-width:110px;max-width:145px}.attendance-overview>div{padding:0 15px}.attendance-overview strong{font-size:21px}.attendance-overview p{font-size:9px}.attendance-card{padding:20px}.form-grid{gap:14px}.modal-backdrop{padding:12px}.modal{max-height:94dvh;border-radius:9px}.modal-header{padding:19px 20px 16px}.modal-body{padding:20px}.field{font-size:10px}.input{font-size:12px}.modal-tabs button{font-size:10px;padding:8px 10px}#toast{left:50%;bottom:18px;min-width:250px;text-align:center}.desktop-only{display:none}.page-foot{font-size:8px}.task-details{margin-left:20px}}
 @media(max-width:720px){.task-title{font-size:11px}.task-main{flex-wrap:wrap;row-gap:5px}.task-due{font-size:8px}.task-subline{font-size:8px;flex-wrap:wrap;line-height:1.7}.lesson-name{font-size:13px}.lesson-meta{font-size:10px;line-height:1.7}.quick-add{font-size:10px;min-height:28px}.task-details p,.checklist label{font-size:11px}.day-tab{min-height:33px}.task .check,.checklist .check{width:15px;height:15px}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.view-tools{flex-wrap:wrap}.filter-select{max-width:none;width:100%}.aside{grid-template-columns:1fr}.aside .aside-section{padding-bottom:20px}.deadline p{display:flex}.aside-title{font-size:12px}.weekly-copy strong{font-size:11px}.weekly-copy p,.aside-caption,.deadline button{font-size:10px}.sync-mini h4{font-size:12px}.sync-mini p,.sync-mini button{font-size:11px}.page-heading .actions .btn{white-space:normal;text-align:center}.attendance-card h3{line-height:1.7}.attendance-card footer{flex-wrap:wrap;line-height:1.7}.modal .form-actions{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Theme choices stay on the root element so dialogs and native form controls match. */
+:root{color-scheme:light;--input-bg:#fafafa;--input-ink:#45454f}
+.btn[href]{text-decoration:none}
+.checkbox-label.field.full{flex-direction:row;align-items:flex-start;gap:10px}
+.checkbox-label.field.full>input{flex:0 0 auto;margin-top:4px}
+.checkbox-label small{display:block;margin-top:5px;line-height:1.7}
+.connection-guide,.connection-recovery{border:1px solid var(--line);border-radius:7px;padding:15px 16px;margin-bottom:20px;font-size:11px;line-height:1.8}
+.connection-guide strong,.connection-recovery strong{font-weight:550}
+.connection-guide p,.connection-recovery p{color:#878794;margin:7px 0 12px;font-size:10px}
+.connection-guide .form-status{margin-bottom:0}
+.connection-guide .settings-inline{gap:8px}
+.connection-recovery{margin-top:16px;background:#f5f1e8;border-color:#e9dfcb;color:#927344}
+.connection-recovery ol{padding-left:18px;margin:10px 0}
+.appearance-caption{font-size:10px!important;margin-top:12px!important}
+input:-webkit-autofill,textarea:-webkit-autofill,select:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--input-bg) inset;-webkit-text-fill-color:var(--input-ink)}
+html[data-theme="dark"]{color-scheme:dark;color:#fafafa;background:#09090b;--ink:#fafafa;--muted:#9696a3;--line:#2a2a33;--soft:#19191f;--green:#9dbfa9;--amber:#d3b17b;--red:#e29b92;--input-bg:#151519;--input-ink:#ededf1}
+html[data-theme="dark"] body{background:#09090b}
+html[data-theme="dark"] .sidebar{background:#111114;border-color:#28282e}
+html[data-theme="dark"] .topbar{background:#09090b;border-color:var(--line)}
+html[data-theme="dark"] .brand-mark{background:#fafafa;color:#09090b}
+html[data-theme="dark"] .nav button{color:#a4a4b1}
+html[data-theme="dark"] .nav button:hover{background:#1e1e25;color:#fafafa}
+html[data-theme="dark"] .nav button.active{background:#25252e;color:#fafafa}
+html[data-theme="dark"] .nav .count{background:#353540;color:#c3c3d1}
+html[data-theme="dark"] .nav-divider,html[data-theme="dark"] .sidebar-tip,html[data-theme="dark"] .profile{border-color:#292930}
+html[data-theme="dark"] .avatar{background:#2d2d38;color:#c8c8d5}
+html[data-theme="dark"] .breadcrumb strong{color:#c3c3d0}
+html[data-theme="dark"] .icon-btn{color:#a7a7b5}
+html[data-theme="dark"] .icon-btn:hover{background:#25252e;color:#fafafa}
+html[data-theme="dark"] .btn{background:#19191f;border-color:#363640;color:#d8d8e2}
+html[data-theme="dark"] .btn:hover{background:#292932}
+html[data-theme="dark"] .btn.primary{background:#f1f1f4;border-color:#f1f1f4;color:#17171b}
+html[data-theme="dark"] .btn.primary:hover{background:#d8d8e0}
+html[data-theme="dark"] .btn.ghost{background:transparent;border-color:transparent;color:#acacb9}
+html[data-theme="dark"] .btn.danger{color:#e8a29a;border-color:#674039}
+html[data-theme="dark"] .badge{background:#262630;color:#bcbcc9}
+html[data-theme="dark"] .badge.demo{background:transparent;border-color:#3b3b46}
+html[data-theme="dark"] .badge.ok{background:#192b22;color:#a3c7ae}
+html[data-theme="dark"] .badge.warning{background:#352c1c;color:#dabc83}
+html[data-theme="dark"] .badge.critical{background:#382222;color:#ecaaa0}
+html[data-theme="dark"] .summary-cell strong,html[data-theme="dark"] .lesson-time time,html[data-theme="dark"] .absence-split b{color:#dedee8}
+html[data-theme="dark"] .lesson-time time+time{color:#818190}
+html[data-theme="dark"] .lesson-time:after{background:#2c2c35}
+html[data-theme="dark"] .day-tab{color:#a3a3b2}
+html[data-theme="dark"] .day-tab:hover{background:#24242e}
+html[data-theme="dark"] .day-tab.selected{background:#ededf2;color:#16161b}
+html[data-theme="dark"] .today-tag{background:#1e3025;color:#adccb4}
+html[data-theme="dark"] .lesson-type{background:#22222c;color:#b1b1c0}
+html[data-theme="dark"] .lesson-meta .separator{background:#545462}
+html[data-theme="dark"] .quick-add:hover{color:#ededf3}
+html[data-theme="dark"] .task{background:#19191f}
+html[data-theme="dark"] .task-details{border-color:#34343e}
+html[data-theme="dark"] .task-details p{color:#aaaab9}
+html[data-theme="dark"] .checklist label{color:#c2c2d0}
+html[data-theme="dark"] .check{border-color:#646476}
+html[data-theme="dark"] .check:checked{border-color:#7d9e88;background:#7d9e88}
+html[data-theme="dark"] .progress,html[data-theme="dark"] .ring-bg{background:#2d2d37;stroke:#2d2d37}
+html[data-theme="dark"] .mini-progress{background:#3b3b48}
+html[data-theme="dark"] .task-due.overdue{color:#df9d91}
+html[data-theme="dark"] .text-btn{color:#b1b1bf}
+html[data-theme="dark"] .text-btn:hover{color:#fafafa}
+html[data-theme="dark"] .deadline-icon{background:#20202a;color:#acacbd}
+html[data-theme="dark"] .cal-day.current{background:#e6e6ed;color:#16161b}
+html[data-theme="dark"] .aside-note strong{color:#b5b5c4}
+html[data-theme="dark"] .sync-mini,html[data-theme="dark"] .info-note,html[data-theme="dark"] .notice{background:#1b1b23;color:#afafbf}
+html[data-theme="dark"] .sync-mini h4,html[data-theme="dark"] .sync-mini button{color:#d0d0de}
+html[data-theme="dark"] .input{background:var(--input-bg);color:var(--input-ink);border-color:#3b3b48}
+html[data-theme="dark"] .input:disabled{background:#1c1c24;color:#9595a6}
+html[data-theme="dark"] .input::placeholder{color:#737386}
+html[data-theme="dark"] .input:focus{border-color:#8da497}
+html[data-theme="dark"] .empty{border-color:#3a3a47}
+html[data-theme="dark"] .empty strong{color:#c7c7d4}
+html[data-theme="dark"] .modal{background:#111114;border-color:#33333f}
+html[data-theme="dark"] .modal-tabs button.active{background:#30303b;color:#ececf2}
+html[data-theme="dark"] .search-result{background:#20202a}
+html[data-theme="dark"] .search-result:hover{background:#2d2d39}
+html[data-theme="dark"] .key-hint{border-color:#40404e}
+html[data-theme="dark"] .connection-recovery{background:#2d271c;border-color:#55462e;color:#d6b47b}
+html[data-theme="dark"] .connection-recovery p{color:#bcb19b}
+html[data-theme="dark"] .form-status.error{color:#e49d93}
+html[data-theme="dark"] .startup-message{color:#fafafa}
+html[data-theme="dark"] .startup-message pre,html[data-theme="dark"] .startup-message a,html[data-theme="dark"] .startup-message button{background:#20202a;color:#e4e4ee;border-color:#3c3c4a}
+@media(max-width:720px){.connection-guide .btn{white-space:normal;line-height:1.6;font-size:10px}.connection-guide{padding:13px}.connection-guide p{font-size:11px}.top-actions{gap:2px}}

@@ -1,10 +1,10 @@
 /* Network-first for this app's static files only. Never cache HEMIS or ntfy data. */
-const CACHE_VERSION = '2026.10.20.2';
+const CACHE_VERSION = '2026.10.20.3';
 const ROOT = new URL('./', self.location.href);
 const CACHE_PREFIX = `hemis-planner:${ROOT.pathname}:`;
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const STATIC_FILES = [
-  './', './index.html', './styles.css', './app.js', './api.js', './sync.js', './data.js',
+  './', './index.html', './styles.css', './app.js', './api.js', './sync.js', './data.js', './theme.js',
   './manifest.json', './icon.svg', './icon-192.png', './icon-512.png'
 ];
 const STATIC_URLS = new Set(STATIC_FILES.map(path => new URL(path, ROOT).href));
@@ -28,7 +28,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== ROOT.origin || !url.pathname.startsWith(ROOT.pathname) || url.searchParams.has('diagnostic')) return;
+  if (request.method !== 'GET' || url.origin !== ROOT.origin || !url.pathname.startsWith(ROOT.pathname) || url.searchParams.has('diagnostic') || url.pathname === '/health' || url.pathname === '/hemis-proxy') return;
   // Exact allowlist prevents accidental storage of API responses or credentials.
   const cleanURL = new URL(url.pathname, ROOT.origin).href;
   const isNavigation = request.mode === 'navigate' && (url.pathname === ROOT.pathname || url.pathname === `${ROOT.pathname}index.html`);

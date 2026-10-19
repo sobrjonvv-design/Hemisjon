@@ -8,6 +8,27 @@ export const UNIVERSITIES = Object.freeze([
   { name: 'HEMIS', url: 'https://student.hemis.uz' }
 ]);
 
+function bridgeOrigin() {
+  const page = globalThis.location;
+  return page && ['127.0.0.1', 'localhost'].includes(page.hostname) ? page.origin : 'http://127.0.0.1:8080';
+}
+
+export async function probeBridge({timeoutMs = 3000} = {}) {
+  const origin = bridgeOrigin();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${origin}/health`, {method: 'GET', credentials: 'omit', cache: 'no-store', signal: controller.signal});
+    if (!response.ok) return {ok: false, code: 'BRIDGE_OUTDATED', message: 'Мост не отвечает на проверку. Запустите stop.bat, затем обновлённый start.bat.', url: origin};
+    let data;
+    try { data = await response.json(); } catch { return {ok: false, code: 'WRONG_SERVICE', message: 'На порту запущена другая программа. Остановите её и запустите start.bat.', url: origin}; }
+    if (data.service !== 'hemis-planner-bridge' || data.protocol !== 1) return {ok: false, code: 'WRONG_SERVICE', message: 'Обнаружен другой или устаревший сервер. Запустите stop.bat, затем start.bat из обновлённой папки.', url: origin};
+    return {ok: true, code: 'READY', message: 'Локальный мост работает. Можно подключаться к HEMIS.', version: data.version, url: origin};
+  } catch {
+    return {ok: false, code: 'BRIDGE_UNREACHABLE', message: 'Локальный мост недоступен браузеру. Запустите start.bat на этом компьютере. Если он уже запущен — откройте локальную версию приложения.', url: origin};
+  } finally { clearTimeout(timer); }
+}
+
 const text = value => typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
 const label = value => text(value?.name ?? value?.title ?? value?.full_name ?? value);
 const keyName = value => text(value).normalize('NFKC').toLowerCase().replace(/[‘’ʻʼ`]/g, "'").replace(/\s+/g, ' ').trim();
@@ -188,12 +209,21 @@ export class HemisClient {
     this.allowPublicProxy = Boolean(allowPublicProxy);
     this.onStatus = onStatus;
     this.bridgeUnavailable = false;
+    this.bridgeChecked = false;
   }
 
   async request(path, { method = 'GET', body } = {}) {
     const target = `${this.baseUrl}/rest/v1/${path}`;
     const routes = [];
-    if (!this.bridgeUnavailable) routes.push({ name: 'Локальный мост', url: 'http://127.0.0.1:8080/hemis-proxy', bridge: true });
+    const failures = [];
+    if (!this.bridgeChecked) {
+      this.onStatus('Проверяем локальный мост…');
+      this.bridgeStatus = await probeBridge();
+      this.bridgeUnavailable = !this.bridgeStatus.ok;
+      this.bridgeChecked = true;
+    }
+    if (!this.bridgeUnavailable) routes.push({ name: 'Локальный мост', url: `${bridgeOrigin()}/hemis-proxy`, bridge: true });
+    else failures.push(`Локальный мост: ${this.bridgeStatus?.message || 'недоступен'}`);
     routes.push({ name: 'Прямое подключение', url: target });
     // Public services receive the bearer token. Only an explicit opt-in enables GET fallback.
     // Password login is never relayed to public proxies.
@@ -201,7 +231,6 @@ export class HemisClient {
       { name: 'Публичный прокси corsproxy.io', url: `https://corsproxy.io/?url=${encodeURIComponent(target)}` },
       { name: 'Публичный прокси cors.eu.org', url: `https://cors.eu.org/${target}` }
     );
-    const failures = [];
     for (const route of routes) {
       this.onStatus(`${route.name}…`);
       const controller = new AbortController();
@@ -215,19 +244,24 @@ export class HemisClient {
         const status = route.bridge ? Number(payload.status ?? response.status) : response.status;
         const data = route.bridge ? payload.data : payload;
         if (!response.ok || route.bridge && !payload.ok || status >= 400) {
-          const message = status === 401 ? 'HEMIS отклонил авторизацию. Проверьте логин, пароль или срок токена.' : status === 429 ? 'HEMIS ограничил частоту запросов. Повторите позже.' : `Ошибка HTTP ${status}: ${text(payload.error ?? data?.message ?? payload.message).slice(0, 160) || 'сервер недоступен'}`;
+          const bridgeErrors = {UPSTREAM_TIMEOUT:'Мост работает, но портал HEMIS не ответил вовремя.',UPSTREAM_TLS:'Мост не смог установить доверенное HTTPS-соединение с порталом HEMIS.',UPSTREAM_NETWORK:'Мост не смог найти портал HEMIS или подключиться к нему. Проверьте адрес и сеть.',BRIDGE_ERROR:'Мост получил запрос, но не смог его выполнить. Проверьте доступ к порталу и обновите локальный сервер.'};
+          const message = status === 401 ? 'HEMIS отклонил авторизацию. Проверьте логин, пароль или срок токена.' : status === 429 ? 'HEMIS ограничил частоту запросов. Повторите позже.' : bridgeErrors[payload.code] || `Ошибка HTTP ${status}: ${text(payload.error ?? data?.message ?? payload.message).slice(0, 160) || 'сервер недоступен'}`;
           throw new RequestError(message, status, [401, 422, 429].includes(status));
         }
-        assertSuccess(data);
+        try { assertSuccess(data); } catch (error) { if (path === 'auth/login') throw new RequestError(error.message, status, true); throw error; }
         this.onStatus(`Подключено: ${route.name.toLowerCase()}`);
         return data;
       } catch (error) {
         if (error.terminal) throw error;
         if (route.bridge && (error instanceof TypeError || error.name === 'AbortError')) this.bridgeUnavailable = true;
-        failures.push(`${route.name}: ${error.name === 'AbortError' ? 'время ожидания истекло' : error.message}`);
+        const reason = error.name === 'AbortError' ? 'время ожидания истекло' : error instanceof TypeError ? 'браузер не получил ответ: возможны CORS, ограничения сети или недоступность портала' : error.message;
+        failures.push(`${route.name}: ${reason}`);
       } finally { clearTimeout(timeout); }
     }
-    throw new Error(`${failures.join('\n')}\nЗапустите start.bat или импортируйте JSON. Локальный мост использует ваш IP; он не снимает Geo-IP-ограничения.`);
+    const failure = new Error(`${failures.join('\n')}\nДля Windows: запустите start.bat и выполните вход в открывшейся локальной версии. На GitHub Pages серверный мост не запускается. Альтернатива — импорт JSON. Это сетевая ошибка; правильность пароля пока не подтверждена.`);
+    failure.code = 'CONNECTION_UNAVAILABLE';
+    failure.bridge = this.bridgeStatus;
+    throw failure;
   }
 
   async login(login, password) {

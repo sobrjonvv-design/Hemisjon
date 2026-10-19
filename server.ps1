@@ -1,10 +1,41 @@
 param(
     [int]$Port = 8080,
-    [string[]]$AdditionalAllowedHosts = @()
+    [string[]]$AdditionalAllowedHosts = @(),
+    [switch]$StopBridge
 )
 # Loopback-only, buildless web server and narrowly scoped HEMIS bridge.
 # No passwords, bearer tokens or request bodies are written to disk/logs.
 $ErrorActionPreference = 'Stop'
+$plannerHasher = [Security.Cryptography.SHA256]::Create()
+try { $plannerPathHash = [BitConverter]::ToString($plannerHasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($PSScriptRoot.ToLowerInvariant()))).Replace('-','').Substring(0,24) }
+finally { $plannerHasher.Dispose() }
+$plannerStatePath = Join-Path ([IO.Path]::GetTempPath()) ('hemis-planner-' + $plannerPathHash + '.json')
+if ($StopBridge) {
+    if (!(Test-Path -LiteralPath $plannerStatePath)) {
+        # Upgrade path for older copies that did not support the control endpoint.
+        try {
+            $plannerLegacyManifest = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/manifest.json' -TimeoutSec 2
+            if ($plannerLegacyManifest.short_name -ne 'HEMIS Planner') { throw 'Not a Planner server' }
+            $plannerLegacySocket = netstat -ano -p tcp | Select-String '^\s*TCP\s+127\.0\.0\.1:8080\s+0\.0\.0\.0:0\s+\S+\s+(\d+)\s*$' | Select-Object -First 1
+            if (!$plannerLegacySocket) { throw 'No listening bridge' }
+            $plannerLegacyProcessId = [int]$plannerLegacySocket.Matches[0].Groups[1].Value
+            $plannerLegacyProcess = Get-Process -Id $plannerLegacyProcessId -ErrorAction Stop
+            if ($plannerLegacyProcess.ProcessName -ne 'powershell' -or $plannerLegacyProcessId -eq $PID) { throw 'Not a PowerShell bridge' }
+            Stop-Process -Id $plannerLegacyProcessId -ErrorAction Stop
+            Write-Output 'Previous HEMIS Planner bridge stopped.'
+        } catch { Write-Output 'No running Planner bridge could be stopped. If port 8080 is busy, close the older Planner server and retry.' }
+        exit 0
+    }
+    try {
+        $plannerState = Get-Content -LiteralPath $plannerStatePath -Raw | ConvertFrom-Json
+        $plannerPort = [int]$plannerState.port
+        if ($plannerPort -lt 1 -or $plannerPort -gt 65535 -or [string]$plannerState.key -notmatch '^[a-f0-9]{32}$') { throw 'Invalid bridge state' }
+        $plannerReply = Invoke-RestMethod -Uri ("http://127.0.0.1:$plannerPort/stop-bridge") -Method POST -ContentType 'text/plain' -Body (@{key=$plannerState.key} | ConvertTo-Json -Compress) -TimeoutSec 3
+        if (!$plannerReply.ok) { throw 'Bridge stop was not accepted' }
+        Write-Output 'HEMIS Planner bridge stopped.'
+        exit 0
+    } catch { [Console]::Error.WriteLine('Could not stop the bridge. It may already be closed.'); exit 1 }
+}
 Add-Type -AssemblyName System.Net.Http
 $rootPath = [IO.Path]::GetFullPath($PSScriptRoot)
 $allowedHosts = @('student.tift.uz','xmn.tuit.uz','student.tdtu.uz','talaba.tsue.uz','hstudent.nuu.uz','student.hemis.uz') + $AdditionalAllowedHosts
@@ -16,6 +47,8 @@ $httpClient.Timeout = [TimeSpan]::FromSeconds(22)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, $Port)
 $utf8 = New-Object Text.UTF8Encoding($false)
+$plannerControlKey = [Guid]::NewGuid().ToString('N')
+$plannerStopRequested = $false
 $mime = @{'.html'='text/html; charset=utf-8';'.css'='text/css; charset=utf-8';'.js'='text/javascript; charset=utf-8';'.json'='application/json; charset=utf-8';'.svg'='image/svg+xml';'.png'='image/png';'.md'='text/plain; charset=utf-8'}
 
 function Send-Response($stream, [int]$status, [byte[]]$bytes, [string]$contentType, [string]$origin) {
@@ -45,9 +78,10 @@ function Test-PublicAddress([Net.IPAddress]$address) {
 
 try {
     $listener.Start()
+    [IO.File]::WriteAllText($plannerStatePath,(@{key=$plannerControlKey;port=$Port} | ConvertTo-Json -Compress),$utf8)
     Write-Output "HEMIS Planner: http://127.0.0.1:$Port/ (Ctrl+C to stop)"
     $waitingClients = New-Object System.Collections.ArrayList
-    while ($true) {
+    while (!$plannerStopRequested) {
         while ($listener.Pending()) { [void]$waitingClients.Add(@{Socket=$listener.AcceptTcpClient();Created=[DateTime]::UtcNow}) }
         $ready = $null
         foreach ($entry in @($waitingClients.ToArray())) {
@@ -58,6 +92,7 @@ try {
         $waitingClients.Remove($ready)
         $client = $ready.Socket
         $stream = $null
+        $origin = ''
         try {
             $client.ReceiveTimeout = 10000; $client.SendTimeout = 10000
             $stream = $client.GetStream()
@@ -91,6 +126,19 @@ try {
             while ($offset -lt $length) { $read=$stream.Read($body,$offset,$length-$offset); if ($read -le 0) { throw 'Incomplete request body' }; $offset += $read }
             if ($method -eq 'OPTIONS') { Send-Response $stream 204 ([byte[]]@()) 'text/plain' $origin; continue }
             $path = [Uri]::UnescapeDataString(($requestPath -split '\?')[0])
+            if ($path -eq '/stop-bridge') {
+                if ($method -ne 'POST') { Send-Json $stream 405 @{ok=$false;error='POST required'} $origin; continue }
+                $plannerControl = $utf8.GetString($body) | ConvertFrom-Json
+                if ([string]$plannerControl.key -cne $plannerControlKey) { Send-Json $stream 403 @{ok=$false;error='Invalid control key'} $origin; continue }
+                Send-Json $stream 200 @{ok=$true} $origin
+                $plannerStopRequested = $true
+                continue
+            }
+            if ($path -eq '/health') {
+                if ($method -ne 'GET') { Send-Json $stream 405 @{ok=$false;error='GET required'} $origin; continue }
+                Send-Json $stream 200 @{ok=$true;service='hemis-planner-bridge';protocol=1;version='2026.10.20.3';port=$Port} $origin
+                continue
+            }
             if ($path -eq '/hemis-proxy') {
                 if ($method -ne 'POST') { Send-Json $stream 405 @{ok=$false;error='POST required'} $origin; continue }
                 $payload = $utf8.GetString($body) | ConvertFrom-Json
@@ -127,7 +175,18 @@ try {
             $bytes = [IO.File]::ReadAllBytes($candidate)
             Send-Response $stream 200 $bytes $mime[$extension] $origin
         } catch {
-            if ($stream) { try { Send-Json $stream 502 @{ok=$false;status=502;error='Bridge request failed. Check portal address, internet access and server configuration.'} '' } catch {} }
+            $cause = $_.Exception.GetBaseException()
+            $failureCode = 'BRIDGE_ERROR'
+            $failureMessage = 'Bridge request failed. Check portal address and connection.'
+            if ($cause -is [System.Threading.Tasks.TaskCanceledException]) { $failureCode='UPSTREAM_TIMEOUT'; $failureMessage='The HEMIS portal did not reply in time. Check access to the portal from this network.' }
+            elseif ($cause -is [System.Security.Authentication.AuthenticationException]) { $failureCode='UPSTREAM_TLS'; $failureMessage='Could not establish a trusted HTTPS connection to the HEMIS portal. Certificate verification remains enabled.' }
+            elseif ($cause -is [System.Net.Sockets.SocketException]) { $failureCode='UPSTREAM_NETWORK'; $failureMessage='Could not resolve or reach the HEMIS portal. Check internet access and the portal hostname.' }
+            if ($stream) { try { Send-Json $stream 502 @{ok=$false;status=502;code=$failureCode;error=$failureMessage} $origin } catch {} }
         } finally { if ($stream) { $stream.Dispose() }; $client.Dispose() }
     }
-} finally { $listener.Stop();$httpClient.Dispose();$handler.Dispose() }
+} finally {
+    $listener.Stop();$httpClient.Dispose();$handler.Dispose()
+    if (Test-Path -LiteralPath $plannerStatePath) {
+        try { $plannerSaved = Get-Content -LiteralPath $plannerStatePath -Raw | ConvertFrom-Json; if ($plannerSaved.key -ceq $plannerControlKey) { Remove-Item -LiteralPath $plannerStatePath } } catch {}
+    }
+}

@@ -35,7 +35,7 @@ export function createEmptyState() {
   return {
     version: 1, mode: 'local', profile: {name: '', university: '', group: ''},
     schedule: [], subjects: [], tasks: [],
-    settings: {notificationEnabled: false, notificationTime: '20:00', timeZone: TIME_ZONE},
+    settings: {notificationEnabled: false, notificationTime: '20:00', timeZone: TIME_ZONE, theme: 'system'},
     updatedAt: new Date().toISOString()
   };
 }
@@ -274,7 +274,8 @@ export function validateState(raw) {
   unique(state.tasks, 'Задания');
   const settings = object(raw.settings || {}, 'Настройки');
   state.settings = {notificationEnabled: bool(settings.notificationEnabled, 'уведомления'),
-    notificationTime: time(settings.notificationTime ?? '20:00', 'уведомление'), timeZone: TIME_ZONE};
+    notificationTime: time(settings.notificationTime ?? '20:00', 'уведомление'), timeZone: TIME_ZONE,
+    theme: choice(settings.theme, ['system', 'light', 'dark'], 'тема оформления', 'system')};
   state.updatedAt = timestamp(raw.updatedAt, now);
   return state;
 }
