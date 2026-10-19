@@ -1,7 +1,7 @@
 /* HEMIS Planner HTTPS bridge. Deploy as a Cloudflare Worker.
    Configure BRIDGE_KEY as a secret and ALLOWED_ORIGINS as a text variable.
    Never add console logging of request bodies, keys, tokens or upstream responses. */
-const VERSION = '2026.10.20.4';
+const VERSION = '2026.10.20.5';
 const DEFAULT_HOSTS = ['student.tift.uz', 'xmn.tuit.uz', 'student.tdtu.uz', 'talaba.tsue.uz', 'hstudent.nuu.uz', 'student.hemis.uz'];
 const MAX_REQUEST = 16384;
 const MAX_RESPONSE = 5 * 1024 * 1024;
@@ -118,7 +118,14 @@ export default {
         if (response.status>=300&&response.status<400) throw new BridgeError('Портал перенаправляет запрос. Проверьте точный адрес REST API.', 'UPSTREAM_REDIRECT',502);
         const content = await smallText(response,MAX_RESPONSE);
         let data;
-        try { data=JSON.parse(content); } catch { throw new BridgeError('HEMIS вернул страницу вместо JSON. Проверьте доступ к API, Geo-IP и адрес портала.', 'UPSTREAM_NOT_JSON',502); }
+        try { data=JSON.parse(content); } catch {
+          // Some HEMIS deployments negotiate XML even when JSON was requested.
+          // Forward only the API response envelope for the browser's native XML parser.
+          if (/^\s*(?:<\?xml[^>]*>\s*)?<response(?:\s|>)/i.test(content) && !/<!DOCTYPE|<!ENTITY/i.test(content) && /<\/response\s*>\s*$/.test(content)) {
+            return json({ok:response.ok,status:response.status,format:'xml',data:content},origin);
+          }
+          throw new BridgeError(`Мост получил ответ HEMIS, но это страница вместо данных API (HTTP ${response.status}). Проверьте доступ к REST API вуза; повторная настройка моста не требуется.`, 'UPSTREAM_NOT_JSON',502);
+        }
         return json({ok:response.ok,status:response.status,data},origin);
       } catch(error) {
         if(error instanceof BridgeError)throw error;
